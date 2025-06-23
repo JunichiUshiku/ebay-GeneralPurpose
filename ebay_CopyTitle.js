@@ -13,6 +13,19 @@
 (function() {
     'use strict';
 
+    // debounce関数：連続するイベントをまとめ、最後のイベントから指定時間後に一度だけ関数を実行
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
     // ページURLに基づいて適切な処理を実行
     const currentUrl = window.location.href;
 
@@ -34,25 +47,27 @@
             setTimeout(addCopyButtonsToResearch, 1000);
         });
 
+        const debouncedAddButtons = debounce(addCopyButtonsToResearch, 200);
+
         // DOM変更を監視
         const observer = new MutationObserver(function(mutations) {
             let needsUpdate = false;
             mutations.forEach(function(mutation) {
-                if (mutation.addedNodes.length > 0 || mutation.type === 'attributes') {
+                // DOMのノードが追加または削除された場合に再スキャンを実行
+                // これにより、行の再レンダリングでボタンが消えても再追加される
+                if (mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0) {
                     needsUpdate = true;
                 }
             });
             if (needsUpdate) {
-                setTimeout(addCopyButtonsToResearch, 500);
+                debouncedAddButtons();
             }
         });
 
-        // 監視設定
+        // 監視設定：子ノードの変更（追加・削除）を監視
         observer.observe(document.body, {
             childList: true,
-            subtree: true,
-            attributes: true,
-            attributeFilter: ['class']
+            subtree: true
         });
     }
 
@@ -63,16 +78,18 @@
             setTimeout(addCopyButtonsToItemPage, 1000);
         });
 
+        const debouncedAddButtons = debounce(addCopyButtonsToItemPage, 200);
+
         // DOM変更を監視（商品ページの画像やタイトルが動的に読み込まれる場合に備える）
         const observer = new MutationObserver(function(mutations) {
             let needsUpdate = false;
             mutations.forEach(function(mutation) {
-                if (mutation.addedNodes.length > 0 || mutation.type === 'attributes') {
+                if (mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0 || mutation.type === 'attributes') {
                     needsUpdate = true;
                 }
             });
             if (needsUpdate) {
-                setTimeout(addCopyButtonsToItemPage, 500);
+                debouncedAddButtons();
             }
         });
 
@@ -92,16 +109,18 @@
             setTimeout(addCopyButtonsToSearchPage, 1000);
         });
 
+        const debouncedAddButtons = debounce(addCopyButtonsToSearchPage, 200);
+
         // DOM変更を監視
         const observer = new MutationObserver(function(mutations) {
             let needsUpdate = false;
             mutations.forEach(function(mutation) {
-                if (mutation.addedNodes.length > 0 || mutation.type === 'attributes') {
+                if (mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0 || mutation.type === 'attributes') {
                     needsUpdate = true;
                 }
             });
             if (needsUpdate) {
-                setTimeout(addCopyButtonsToSearchPage, 500);
+                debouncedAddButtons();
             }
         });
 
@@ -117,8 +136,8 @@
     // リサーチページに商品リストのコピーボタンを追加
     function addCopyButtonsToResearch() {
         try {
-            // 商品リストの各行を取得
-            const productRows = document.querySelectorAll('tr.research-table-row');
+            // 商品リストの各行を取得（セレクターをより具体的に）
+            const productRows = document.querySelectorAll('.sold-result-table tr.research-table-row');
 
             // 各行に処理を適用
             for (var i = 0; i < productRows.length; i++) {
@@ -135,13 +154,13 @@
                 const imgElement = row.querySelector('.research-table-row__thumbnail img.small');
                 if (!imgElement) continue;
 
-                // サムネイル要素を特定（ボタン配置のため）
-                const thumbnailDiv = row.querySelector('.research-table-row__thumbnail');
-                if (!thumbnailDiv) continue;
+                // ボタンを配置する基準となるセル（最初のセル）を特定
+                const firstCell = row.querySelector('td.research-table-row__item');
+                if (!firstCell) continue;
 
-                // サムネイル要素にポジション設定（absoluteポジショニングのため）
-                if (getComputedStyle(thumbnailDiv).position === 'static') {
-                    thumbnailDiv.style.position = 'relative';
+                // セルにポジション設定（absoluteポジショニングのため）
+                if (getComputedStyle(firstCell).position === 'static') {
+                    firstCell.style.position = 'relative';
                 }
 
                 // タイトルコピーボタンの作成
@@ -156,11 +175,17 @@
                 btnImage.textContent = '画像';
                 btnImage.title = '画像URLをコピー';
 
+                // ハイライトクリアボタンの作成
+                var btnClear = document.createElement('button');
+                btnClear.className = 'tm-clear-highlight-btn';
+                btnClear.textContent = 'クリア';
+                btnClear.title = 'ハイライトをクリア';
+
                 // タイトルコピーボタンのスタイル設定
                 applyButtonStyle(btnTitle, {
                     position: 'absolute',
                     left: '-65px',
-                    top: '25%',
+                    top: 'calc(50% - 23px)', // ボタン群を中央揃えにし、3px間隔にするための調整
                     background: 'rgb(3, 102, 214)' // 青色
                 });
 
@@ -168,8 +193,16 @@
                 applyButtonStyle(btnImage, {
                     position: 'absolute',
                     left: '-65px',
-                    top: '75%',
+                    top: '50%', // ボタン群の中心
                     background: 'rgb(76, 175, 80)' // 緑色
+                });
+
+                // ハイライトクリアボタンのスタイル設定
+                applyButtonStyle(btnClear, {
+                    position: 'absolute',
+                    left: '-65px',
+                    top: 'calc(50% + 23px)', // ボタン群を中央揃えにし、3px間隔にするための調整
+                    background: 'rgb(255, 87, 51)' // オレンジ色
                 });
 
                 // タイトルコピーボタンのクリックイベントを設定
@@ -178,9 +211,54 @@
                         e.preventDefault();
                         e.stopPropagation();
 
-                        // タイトルテキストを取得してクリップボードにコピー
+                        // タイトルテキストを取得
                         const titleText = span.textContent.trim();
+                        
+                        // クリップボードにコピー
                         GM_setClipboard(titleText);
+
+                        // キーワード配列を作成（Chrome拡張機能との連携用）
+                        const keywords = titleText.split(/\s+/).filter(k => k.length > 0);
+
+                        // ===== Chrome拡張機能との連携（いつでも削除可能） =====
+                        // キーワードマーカー拡張機能へ通知
+                        console.log('🔍 リサーチページ - 商品名ボタンがクリックされました');
+                        console.log('🔍 抽出されたキーワード:', keywords);
+                        
+                        // 拡張機能の存在確認
+                        if (typeof window.keywordMarkerInitialized !== 'undefined') {
+                            console.log('✅ キーワードマーカー拡張機能が検出されました');
+                        } else {
+                            console.log('❌ キーワードマーカー拡張機能が検出されません');
+                        }
+                        
+                        try {
+                            const customEvent = new CustomEvent('userscript-keyword-highlight', {
+                                detail: {
+                                    keywords: keywords,
+                                    source: 'ebay-copy-title-userscript'
+                                }
+                            });
+                            
+                            console.log('🔄 カスタムイベントを発火中...', customEvent);
+                            document.dispatchEvent(customEvent);
+                            console.log('✅ キーワードマーカー拡張機能に通知送信完了:', keywords);
+                            
+                            // イベントが正しく設定されているかの確認
+                            setTimeout(function() {
+                                const highlightedElements = document.querySelectorAll('span.keyword-highlight-span');
+                                console.log('🎨 ハイライト要素数:', highlightedElements.length);
+                                if (highlightedElements.length > 0) {
+                                    console.log('✅ ハイライトが正常に適用されました');
+                                } else {
+                                    console.log('❌ ハイライトが適用されていません');
+                                }
+                            }, 500);
+                            
+                        } catch (error) {
+                            console.error('❌ キーワードマーカー拡張機能への通知に失敗:', error);
+                        }
+                        // ===== Chrome拡張機能連携ここまで =====
 
                         // フィードバック表示
                         const originalBg = btn.style.backgroundColor;
@@ -225,9 +303,43 @@
                     });
                 })(imgElement, btnImage);
 
-                // ボタンをサムネイル要素に追加
-                thumbnailDiv.appendChild(btnTitle);
-                thumbnailDiv.appendChild(btnImage);
+                // ハイライトクリアボタンのクリックイベントを設定
+                btnClear.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    // Chrome拡張機能へクリア要求を送信
+                    try {
+                        const customEvent = new CustomEvent('userscript-keyword-highlight', {
+                            detail: {
+                                keywords: [],
+                                action: 'clear',
+                                source: 'ebay-copy-title-userscript'
+                            }
+                        });
+                        document.dispatchEvent(customEvent);
+                        console.log('キーワードマーカー拡張機能にクリア要求送信');
+                    } catch (error) {
+                        console.log('キーワードマーカー拡張機能へのクリア要求に失敗:', error);
+                    }
+
+                    // フィードバック表示
+                    const originalBg = this.style.backgroundColor;
+                    this.style.backgroundColor = 'rgb(44, 187, 93)';
+                    this.textContent = 'クリア済';
+
+                    // 元に戻す
+                    var self = this;
+                    setTimeout(function() {
+                        self.style.backgroundColor = originalBg;
+                        self.textContent = 'クリア';
+                    }, 1000);
+                });
+
+                // ボタンを最初のセルに追加
+                firstCell.appendChild(btnTitle);
+                firstCell.appendChild(btnImage);
+                firstCell.appendChild(btnClear);
             }
         } catch (error) {
             console.error('リサーチページコピーボタン追加エラー:', error);
@@ -277,16 +389,24 @@
             btnItemId.textContent = 'アイテムID';
             btnItemId.title = 'アイテムIDをコピー';
 
+            // ハイライトクリアボタンの作成
+            var btnClear = document.createElement('button');
+            btnClear.className = 'tm-item-clear-highlight-btn';
+            btnClear.textContent = 'クリア';
+            btnClear.title = 'ハイライトをクリア';
+
             // ボタンのスタイル設定（Amazon ボタンと同じ高さに合わせる）
             const buttonStyle = 'margin-right: 5px; padding: 5px 10px; border: none; border-radius: 4px; color: white; font-weight: bold; cursor: pointer; height: 30px; line-height: 1;';
             btnTitle.style.cssText = buttonStyle + 'background-color: rgb(3, 102, 214);'; // 青色
             btnImage.style.cssText = buttonStyle + 'background-color: rgb(76, 175, 80);';  // 緑色
             btnItemId.style.cssText = buttonStyle + 'background-color: rgb(156, 39, 176);'; // 紫色
+            btnClear.style.cssText = buttonStyle + 'background-color: rgb(255, 87, 51);'; // オレンジ色
 
             // ボタンをコンテナに追加
             buttonContainer.appendChild(btnTitle);
             buttonContainer.appendChild(btnImage);
             buttonContainer.appendChild(btnItemId);
+            buttonContainer.appendChild(btnClear);
 
             // 挿入先を決定
             let insertTarget = null;
@@ -377,9 +497,54 @@
                 e.preventDefault();
                 e.stopPropagation();
 
-                // タイトルテキストを取得してクリップボードにコピー
+                // タイトルテキストを取得
                 const titleText = titleElement.textContent.trim();
+                
+                // クリップボードにコピー
                 GM_setClipboard(titleText);
+
+                // キーワード配列を作成（Chrome拡張機能との連携用）
+                const keywords = titleText.split(/\s+/).filter(k => k.length > 0);
+
+                // ===== Chrome拡張機能との連携（いつでも削除可能） =====
+                // キーワードマーカー拡張機能へ通知
+                console.log('🔍 商品個別ページ - 商品名ボタンがクリックされました');
+                console.log('🔍 抽出されたキーワード:', keywords);
+                
+                // 拡張機能の存在確認
+                if (typeof window.keywordMarkerInitialized !== 'undefined') {
+                    console.log('✅ キーワードマーカー拡張機能が検出されました');
+                } else {
+                    console.log('❌ キーワードマーカー拡張機能が検出されません');
+                }
+                
+                try {
+                    const customEvent = new CustomEvent('userscript-keyword-highlight', {
+                        detail: {
+                            keywords: keywords,
+                            source: 'ebay-copy-title-userscript'
+                        }
+                    });
+                    
+                    console.log('🔄 カスタムイベントを発火中...', customEvent);
+                    document.dispatchEvent(customEvent);
+                    console.log('✅ キーワードマーカー拡張機能に通知送信完了:', keywords);
+                    
+                    // イベントが正しく設定されているかの確認
+                    setTimeout(function() {
+                        const highlightedElements = document.querySelectorAll('span.keyword-highlight-span');
+                        console.log('🎨 ハイライト要素数:', highlightedElements.length);
+                        if (highlightedElements.length > 0) {
+                            console.log('✅ ハイライトが正常に適用されました');
+                        } else {
+                            console.log('❌ ハイライトが適用されていません');
+                        }
+                    }, 500);
+                    
+                } catch (error) {
+                    console.error('❌ キーワードマーカー拡張機能への通知に失敗:', error);
+                }
+                // ===== Chrome拡張機能連携ここまで =====
 
                 // フィードバック表示
                 const originalBg = this.style.backgroundColor;
@@ -409,7 +574,7 @@
                     if (idElement) {
                         idToCopy = idElement.textContent.trim();
                     } else {
-                        // バックアップ: 「eBay item number:」の隣のBOLDテキストを探す
+                        // バックアップ: "eBay item number:"の隣のBOLDテキストを探す
                         const ebayNumberElements = document.querySelectorAll('.ux-textspans--SECONDARY');
                         for (let element of ebayNumberElements) {
                             if (element.textContent.includes('eBay item number:')) {
@@ -450,6 +615,39 @@
                     alert('アイテムIDが見つかりませんでした。');
                 }
             });
+
+            // ハイライトクリアボタンのクリックイベント
+            btnClear.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                // Chrome拡張機能へクリア要求を送信
+                try {
+                    const customEvent = new CustomEvent('userscript-keyword-highlight', {
+                        detail: {
+                            keywords: [],
+                            action: 'clear',
+                            source: 'ebay-copy-title-userscript'
+                        }
+                    });
+                    document.dispatchEvent(customEvent);
+                    console.log('キーワードマーカー拡張機能にクリア要求送信');
+                } catch (error) {
+                    console.log('キーワードマーカー拡張機能へのクリア要求に失敗:', error);
+                }
+
+                // フィードバック表示
+                const originalBg = this.style.backgroundColor;
+                this.style.backgroundColor = 'rgb(44, 187, 93)';
+                this.textContent = 'クリア済';
+
+                // 元に戻す
+                var self = this;
+                setTimeout(function() {
+                    self.style.backgroundColor = originalBg;
+                    self.textContent = 'クリア';
+                }, 1000);
+            });
         } catch (error) {
             console.error('商品ページコピーボタン追加エラー:', error);
         }
@@ -459,7 +657,7 @@
     function addCopyButtonsToSearchPage() {
         try {
             // 検索結果の各商品アイテムを取得
-            const searchItems = document.querySelectorAll('li.s-item:not(.s-item__pl-on-bottom--ad)');
+            const searchItems = document.querySelectorAll('li.s-card');
 
             // 各商品に処理を適用
             for (var i = 0; i < searchItems.length; i++) {
@@ -469,16 +667,33 @@
                 if (item.querySelector('.tm-search-copy-title-btn')) continue;
 
                 // 商品タイトル要素を特定
-                const titleElement = item.querySelector('.s-item__title span[role="heading"]');
+                const titleElement = item.querySelector('.s-card__title .su-styled-text.primary.default');
                 if (!titleElement) continue;
 
-                // アイテムID要素を特定
-                const itemIdElement = item.querySelector('.s-item__item-id');
+                // アイテムIDを属性セクションから抽出
+                const itemIdElement = item.querySelector('.su-card-container__attributes__secondary .su-styled-text');
                 if (!itemIdElement) continue;
 
-                // ボタンを配置する場所を特定（ebay-category-infoクラスの上）
-                const categoryInfoElement = item.querySelector('.ebay-category-info');
-                if (!categoryInfoElement) continue;
+                let itemId = '';
+                // "Item: 396213183782" の形式から数字部分を抽出
+                const itemIdSpans = item.querySelectorAll('.su-card-container__attributes__secondary .su-styled-text');
+                for (let span of itemIdSpans) {
+                    const text = span.textContent.trim();
+                    const match = text.match(/Item:\s*(\d+)/);
+                    if (match) {
+                        itemId = match[1];
+                        break;
+                    }
+                }
+                
+                if (!itemId) continue;
+
+                // ボタンを配置する場所を特定（su-card-container__headerクラス内のsu-linkクラスの下）
+                const headerElement = item.querySelector('.su-card-container__header');
+                if (!headerElement) continue;
+                
+                const linkElement = headerElement.querySelector('.su-link');
+                if (!linkElement) continue;
 
                 // ボタンコンテナを作成
                 const buttonContainer = document.createElement('div');
@@ -497,10 +712,17 @@
                 btnItemId.textContent = 'アイテムID';
                 btnItemId.title = 'アイテムIDをコピー';
 
+                // ハイライトクリアボタンの作成
+                var btnClear = document.createElement('button');
+                btnClear.className = 'tm-search-clear-highlight-btn';
+                btnClear.textContent = 'クリア';
+                btnClear.title = 'ハイライトをクリア';
+
                 // ボタンのスタイル設定
                 const buttonStyle = 'padding: 4px 8px; font-size: 12px; font-weight: 500; color: white; border: none; border-radius: 4px; cursor: pointer; min-width: 60px;';
                 btnTitle.style.cssText = buttonStyle + 'background-color: rgb(3, 102, 214);'; // 青色
                 btnItemId.style.cssText = buttonStyle + 'background-color: rgb(156, 39, 176);'; // 紫色
+                btnClear.style.cssText = buttonStyle + 'background-color: rgb(255, 87, 51);'; // オレンジ色
 
                 // 商品名コピーボタンのクリックイベント
                 (function(titleEl, btn) {
@@ -508,9 +730,54 @@
                         e.preventDefault();
                         e.stopPropagation();
 
-                        // タイトルテキストを取得してクリップボードにコピー
+                        // タイトルテキストを取得
                         const titleText = titleEl.textContent.trim();
+                        
+                        // クリップボードにコピー
                         GM_setClipboard(titleText);
+
+                        // キーワード配列を作成（Chrome拡張機能との連携用）
+                        const keywords = titleText.split(/\s+/).filter(k => k.length > 0);
+
+                        // ===== Chrome拡張機能との連携（いつでも削除可能） =====
+                        // キーワードマーカー拡張機能へ通知
+                        console.log('🔍 検索結果ページ - 商品名ボタンがクリックされました');
+                        console.log('🔍 抽出されたキーワード:', keywords);
+                        
+                        // 拡張機能の存在確認
+                        if (typeof window.keywordMarkerInitialized !== 'undefined') {
+                            console.log('✅ キーワードマーカー拡張機能が検出されました');
+                        } else {
+                            console.log('❌ キーワードマーカー拡張機能が検出されません');
+                        }
+                        
+                        try {
+                            const customEvent = new CustomEvent('userscript-keyword-highlight', {
+                                detail: {
+                                    keywords: keywords,
+                                    source: 'ebay-copy-title-userscript'
+                                }
+                            });
+                            
+                            console.log('🔄 カスタムイベントを発火中...', customEvent);
+                            document.dispatchEvent(customEvent);
+                            console.log('✅ キーワードマーカー拡張機能に通知送信完了:', keywords);
+                            
+                            // イベントが正しく設定されているかの確認
+                            setTimeout(function() {
+                                const highlightedElements = document.querySelectorAll('span.keyword-highlight-span');
+                                console.log('🎨 ハイライト要素数:', highlightedElements.length);
+                                if (highlightedElements.length > 0) {
+                                    console.log('✅ ハイライトが正常に適用されました');
+                                } else {
+                                    console.log('❌ ハイライトが適用されていません');
+                                }
+                            }, 500);
+                            
+                        } catch (error) {
+                            console.error('❌ キーワードマーカー拡張機能への通知に失敗:', error);
+                        }
+                        // ===== Chrome拡張機能連携ここまで =====
 
                         // フィードバック表示
                         const originalBg = btn.style.backgroundColor;
@@ -526,18 +793,13 @@
                 })(titleElement, btnTitle);
 
                 // アイテムIDコピーボタンのクリックイベント
-                (function(itemIdEl, btn) {
+                (function(itemIdValue, btn) {
                     btn.addEventListener('click', function(e) {
                         e.preventDefault();
                         e.stopPropagation();
 
-                        // アイテムIDテキストを取得（"Item: 123456789" から数字部分のみ抽出）
-                        const itemIdText = itemIdEl.textContent.trim();
-                        const itemIdMatch = itemIdText.match(/Item:\s*(\d+)/);
-                        const itemId = itemIdMatch ? itemIdMatch[1] : itemIdText;
-
                         // クリップボードにコピー
-                        GM_setClipboard(itemId);
+                        GM_setClipboard(itemIdValue);
 
                         // フィードバック表示
                         const originalBg = btn.style.backgroundColor;
@@ -550,14 +812,48 @@
                             btn.textContent = 'アイテムID';
                         }, 1000);
                     });
-                })(itemIdElement, btnItemId);
+                })(itemId, btnItemId);
+
+                // ハイライトクリアボタンのクリックイベント
+                btnClear.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    // Chrome拡張機能へクリア要求を送信
+                    try {
+                        const customEvent = new CustomEvent('userscript-keyword-highlight', {
+                            detail: {
+                                keywords: [],
+                                action: 'clear',
+                                source: 'ebay-copy-title-userscript'
+                            }
+                        });
+                        document.dispatchEvent(customEvent);
+                        console.log('キーワードマーカー拡張機能にクリア要求送信');
+                    } catch (error) {
+                        console.log('キーワードマーカー拡張機能へのクリア要求に失敗:', error);
+                    }
+
+                    // フィードバック表示
+                    const originalBg = this.style.backgroundColor;
+                    this.style.backgroundColor = 'rgb(44, 187, 93)';
+                    this.textContent = 'クリア済';
+
+                    // 元に戻す
+                    var self = this;
+                    setTimeout(function() {
+                        self.style.backgroundColor = originalBg;
+                        self.textContent = 'クリア';
+                    }, 1000);
+                });
 
                 // ボタンをコンテナに追加
                 buttonContainer.appendChild(btnTitle);
                 buttonContainer.appendChild(btnItemId);
+                buttonContainer.appendChild(btnClear);
 
-                // コンテナをebay-category-infoの上に挿入
-                categoryInfoElement.parentNode.insertBefore(buttonContainer, categoryInfoElement);
+                // コンテナをsu-linkの下に挿入
+                linkElement.parentNode.insertBefore(buttonContainer, linkElement.nextSibling);
             }
         } catch (error) {
             console.error('検索結果ページコピーボタン追加エラー:', error);
@@ -568,15 +864,17 @@
     function applyButtonStyle(button, customStyles = {}) {
         // 基本スタイル
         const baseStyles = {
-            padding: '4px 8px',
-            fontSize: '12px',
+            padding: '3px 6px',
+            fontSize: '11px',
             fontWeight: '500',
             color: 'white',
             border: 'none',
-            borderRadius: '4px',
+            borderRadius: '3px',
             cursor: 'pointer',
             zIndex: '10',
-            minWidth: '50px',
+            minWidth: '45px',
+            height: '20px',
+            lineHeight: '1',
             transform: 'translateY(-50%)'
         };
 
@@ -588,4 +886,6 @@
             button.style[prop] = styles[prop];
         }
     }
+
+
 })();

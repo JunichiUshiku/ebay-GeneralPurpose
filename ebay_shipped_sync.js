@@ -298,11 +298,9 @@ function bulkCopyShippedRowsFromSelection() {
     
     filter.setColumnFilterCriteria(4, criteria);
     
-    // フィルターの反映を確実にするため、少し待機してから更新
-    Utilities.sleep(100);
-    SpreadsheetApp.flush();
-    
-         updateProgress("ステータスフィルター：「発送済」「破棄」を非表示に設定");
+         // フィルターの反映を確実にするため、少し待機してから更新
+     Utilities.sleep(100);
+     SpreadsheetApp.flush();
   } catch (filterError) {
     console.error("フィルター設定エラー:", filterError);
     // フィルター設定に失敗してもメイン処理は続行

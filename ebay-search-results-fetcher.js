@@ -19,8 +19,7 @@
     let processedItemCount = 0;          // 現在までに処理したアイテム数を追跡
     const MAX_CONCURRENT_REQUESTS = 5;
 
-    const ITEM_SELECTOR = 'li.s-item, div.s-item';
-    const ITEM_ID_SELECTOR = '.s-item__item-id, .s-item__itemID';
+    const ITEM_SELECTOR = 'li.s-card';
     const DETAILS_SECTION_SELECTOR = '.s-item__details-section--secondary';
 
     // スタイルを追加
@@ -214,19 +213,20 @@
 
         updateDiv.innerHTML = lastUpdatedLineHtml + watchSoldLineHtml;
 
+        const subtitleRow = itemElement.querySelector('.s-card__subtitle-row');
+        if (subtitleRow) {
+            subtitleRow.appendChild(updateDiv);
+            return;
+        }
+
         const categoryInfoDiv = itemElement.querySelector('div[id^="category-info-"]');
         if (categoryInfoDiv && categoryInfoDiv.parentNode) {
             categoryInfoDiv.parentNode.insertBefore(updateDiv, categoryInfoDiv.nextSibling);
             return;
         }
-        const subtitleDiv = itemElement.querySelector('div.s-item__subtitle');
+        const subtitleDiv = itemElement.querySelector('.s-card__subtitle');
         if (subtitleDiv && subtitleDiv.parentNode) {
             subtitleDiv.parentNode.insertBefore(updateDiv, subtitleDiv.nextSibling);
-            return;
-        }
-        const itemIdElement = itemElement.querySelector(ITEM_ID_SELECTOR);
-        if (itemIdElement && itemIdElement.parentNode) {
-            itemIdElement.parentNode.insertBefore(updateDiv, itemIdElement.nextSibling);
             return;
         }
         const detailsSection = itemElement.querySelector(DETAILS_SECTION_SELECTOR);
@@ -297,18 +297,33 @@
         // 処理キューを構築
         const queue = [];
         for (const itemElement of itemsToProcess) {
-            const itemIdElement = itemElement.querySelector(ITEM_ID_SELECTOR);
-            if (!itemIdElement) {
-                console.warn("Item ID element not found for item:", itemElement);
+            let itemId = '';
+            // "Item: 275218373015" の形式から数字部分を抽出
+            const itemIdSpans = itemElement.querySelectorAll('.su-card-container__attributes__secondary .su-styled-text');
+            for (const span of itemIdSpans) {
+                const text = span.textContent.trim();
+                const match = text.match(/Item:\s*(\d+)/);
+                if (match) {
+                    itemId = match[1];
+                    break;
+                }
+            }
+            // フォールバックとしてリンクからも試す
+            if (!itemId) {
+                const linkElement = itemElement.querySelector('.su-card-container__header .su-link');
+                if (linkElement) {
+                    const href = linkElement.getAttribute('href');
+                    const match = href ? href.match(/\/itm\/(\d+)/) : null;
+                    if (match) {
+                        itemId = match[1];
+                    }
+                }
+            }
+
+            if (!itemId) {
+                console.warn("Item ID could not be extracted for item:", itemElement);
                 continue;
             }
-            const itemIdText = itemIdElement.textContent;
-            const match = itemIdText.match(/(\d+)/);
-            if (!match) {
-                console.warn(`No numeric ItemID found in text: ${itemIdText}`);
-                continue;
-            }
-            const itemId = match[1];
             queue.push({ itemElement, itemId });
         }
 
